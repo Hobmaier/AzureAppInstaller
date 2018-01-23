@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<AzureApplication>
+    <General>
+        <Name>DHApp2</Name>
+        <Prefix>EU-West</Prefix>
+        <Region>westeurope</Region>
+    </General>    
+    <StorageAccount>
+        <Provision>true</Provision>
+        <Type>Standard_LRS</Type>
+        <CreateContainers>false</CreateContainers>
+        <Containers>
+            <Container Name="download" Permission="Off" />
+        </Containers>
+    </StorageAccount>
+    <WebAppServicePlan>
+        <Provision>true</Provision>
+        <!-- Free, Shared, Basic, Standard, Premium, PremiumV2 -->
+        <PricingTier>Standard</PricingTier>
+        <!-- Small, Medium, Large, ExtraLarge -->
+        <PricingWorkerSize>Small</PricingWorkerSize>
+    </WebAppServicePlan>
+    <WebApp>
+        <Provision>true</Provision>
+    </WebApp>
+    <SQL>
+        <Provision>true</Provision>
+        <!-- Premium, Basic, Standard, DataWarehouse, Free -->
+        <Edition>Standard</Edition>
+        <SizeinMB>1024</SizeinMB>
+        <SQLAdminUser>SQLAdmin</SQLAdminUser>
+        <PromptForPassword>false</PromptForPassword>
+        <SQLAdminPwd>SecureP@ssw0rd!</SQLAdminPwd>
+    </SQL>
+</AzureApplication>
