@@ -10,7 +10,9 @@
         <Type>Standard_LRS</Type>
         <CreateContainers>false</CreateContainers>
         <Containers>
-            <Container Name="download" Permission="Off" />
+            <!-- Permission can be Off / Blob / Container -->
+            <Container Name="download" Permission="Blob" />
+            <Container Name="log" Permission="Off" />
         </Containers>
     </StorageAccount>
     <WebAppServicePlan>

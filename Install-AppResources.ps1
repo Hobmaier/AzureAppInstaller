@@ -181,6 +181,7 @@ If ($XMLconfig.AzureApplication.StorageAccount.Provision)
         If ($xmlconfig.AzureApplication.StorageAccount.CreateContainers -eq $true)
         {
             Write-Output 'Create Containers'
+            Import-Module Azure-Storage -ErrorAction Inquire
             foreach ($StorageContainer in $xmlconfig.AzureApplication.StorageAccount.Containers.Container)
             {
                 #new container
