@@ -101,7 +101,7 @@ function Select-AppAzureSubscription
 # Script body
 # Execution begins here
 #******************************************************************************
-#$ErrorActionPreference = "Stop"
+$ErrorActionPreference = "Stop"
 
 #Load Azure
 Write-Host 'Import Azure Modules'
@@ -176,12 +176,11 @@ If ($XMLconfig.AzureApplication.StorageAccount.Provision)
             -ResourceGroupName $ResourceGroup.ResourceGroupName `
             -Name $AzureStorage.StorageAccountName
         Write-Output "Storage Account Name: $($AzureStorage.Name)"
-        Write-Output "  Key: $AzureStorageKey"
+        Write-Output "  Key: $($AzureStorageKey.Value[0])"
         
         If ($xmlconfig.AzureApplication.StorageAccount.CreateContainers -eq $true)
         {
             Write-Output 'Create Containers'
-            Import-Module Azure-Storage -ErrorAction Inquire
             foreach ($StorageContainer in $xmlconfig.AzureApplication.StorageAccount.Containers.Container)
             {
                 #new container
@@ -190,6 +189,17 @@ If ($XMLconfig.AzureApplication.StorageAccount.Provision)
                 New-AzureStorageContainer -Name ($StorageContainer.Name).ToLower() -Permission $StorageContainer.Permission | Out-Null
             }
             
+        }
+        If ($xmlconfig.AzureApplication.StorageAccount.CreateQueues -eq $true)
+        {
+            Write-Output 'Create Queues'
+            foreach ($Queue in $xmlconfig.AzureApplication.StorageAccount.Queues.Queue)
+            {
+                #new Queue
+                Write-Output "Create Queue $($Queue)"
+                Set-AzureRmCurrentStorageAccount -ResourceGroupName $ResourceGroup.ResourceGroupName -StorageAccountName $AzureStorage.StorageAccountName
+                New-AzureStorageQueue -Name ($Queue.ToLower()) | Out-Null
+            }            
         }
     }
 }
@@ -200,6 +210,7 @@ If ($XMLconfig.AzureApplication.WebAppServicePlan.Provision)
     Write-Verbose 'Try to get existing WebAppPlan'
     If (!(Get-AzureRmAppServicePlan -Name $ApplicationName -ResourceGroupName $ResourceGroup.ResourceGroupName -ErrorAction SilentlyContinue))
     {
+        Write-Output 'Create App Plan'
         $AzureAppPlan = New-AzureRmAppServicePlan `
             -Location $XMLconfig.AzureApplication.General.Region `
             -Name $ApplicationName `
@@ -207,21 +218,6 @@ If ($XMLconfig.AzureApplication.WebAppServicePlan.Provision)
             -Tier $XMLconfig.AzureApplication.WebAppServicePlan.PricingTier `
             -WorkerSize $XMLconfig.AzureApplication.WebAppServicePlan.PricingWorkerSize `
             -ErrorAction Stop
-    }
-}
-
-#WebApp
-If ($XMLconfig.AzureApplication.WebApp.Provision)
-{
-    Write-Verbose 'Try to get existing WebApp'
-    If (!(Get-AzureRmWebApp -Name $ApplicationName -ResourceGroupName $ResourceGroup.ResourceGroupName -ErrorAction SilentlyContinue))
-    {
-        $AzureApp = New-AzureRmWebApp `
-            -Location $XMLconfig.AzureApplication.General.Region `
-            -Name $ApplicationName `
-            -ResourceGroupName $ResourceGroup.ResourceGroupName `
-            -AppServicePlan $AzureAppPlan.Name
-        Write-Output "WebApp created $($AzureApp.Name)"
     }
 }
 
@@ -241,6 +237,7 @@ If ($XMLconfig.AzureApplication.SQL.Provision)
     If (!(Get-AzureRmSqlServer -Name $ApplicationName -ResourceGroupName $ResourceGroup.ResourceGroupName -ErrorAction SilentlyContinue))    
     {
         #Server
+        Write-Output 'Create SQL Server'
         $AzureSQL = New-AzureRmSqlServer `
             -Location $XMLconfig.AzureApplication.General.Region `
             -ResourceGroupName $ResourceGroup.ResourceGroupName `
@@ -254,6 +251,7 @@ If ($XMLconfig.AzureApplication.SQL.Provision)
     If (!(Get-AzureRmSqlDatabase -Name $ApplicationName -ResourceGroupName $ResourceGroup.ResourceGroupName -ServerName $AzureSQL.Servername -ErrorAction SilentlyContinue))
     {    
         [int32]$DBInMB = $xmlconfig.AzureApplication.sql.SizeinMB
+        Write-Output 'Create SQL database'
         $AzureDB = New-AzureRmSqlDatabase `
             -DatabaseName $ApplicationName `
             -ResourceGroupName $ResourceGroup.ResourceGroupName `
@@ -261,6 +259,107 @@ If ($XMLconfig.AzureApplication.SQL.Provision)
             -MaxSizeBytes ($DBInMB * 1024 * 1024)
         Write-Output "DB created: $($AzureDB.DatabaseName)"
     }
+}
+
+#WebApp
+If ($XMLconfig.AzureApplication.WebApp.Provision)
+{
+    Write-Verbose 'Try to get existing WebApp'
+    If (!(Get-AzureRmWebApp -Name $ApplicationName -ResourceGroupName $ResourceGroup.ResourceGroupName -ErrorAction SilentlyContinue))
+    {
+        Write-Output 'Create Azure App'
+        $AzureApp = New-AzureRmWebApp `
+            -Location $XMLconfig.AzureApplication.General.Region `
+            -Name $ApplicationName `
+            -ResourceGroupName $ResourceGroup.ResourceGroupName `
+            -AppServicePlan $AzureAppPlan.Name
+        Write-Output "WebApp created $($AzureApp.Name)"
+    }
+    
+    If ($XMLconfig.AzureApplication.WebApp.CreateAppSettings -eq $true)
+    {
+        Write-Output 'Set AppSettings'
+
+        $appSettingList = $AzureApp.SiteConfig.AppSettings
+ 
+        $hashAppSettings = @{}
+        ForEach ($kvp in $appSettingList) {
+        $hashAppSettings[$kvp.Name] = $kvp.Value
+        }
+        foreach ($AppSetting in $XMLconfig.AzureApplication.WebApp.AppSettings.AppSetting)
+        {
+            $hashAppSettings[$AppSetting.Name] = $AppSetting.Value
+        }
+    }
+
+    If ($XMLconfig.AzureApplication.WebApp.CreateConnectionStrings -eq $true)
+    {
+        Write-Output 'Set ConnectionStrings'
+        $ConnectionStringList = $AzureApp.SiteConfig.ConnectionStrings
+        $hashItems = New-Object System.Collections.HashTable
+        
+        ForEach ($keyValuePair in $ConnectionStringList) {
+            Write-Verbose 'Found existing connections'
+            $setting =  @{Type=$keyValuePair.Type.ToString();Value=$keyValuePair.ConnectionString.ToString()}
+            $hashItems.Add($keyValuePair.Name,$setting);
+        }
+
+        foreach ($connectionstring in $XMLconfig.AzureApplication.WebApp.ConnectionStrings.ConnectionString)
+        {
+            #Create Connection String
+            switch ($connectionstring.Type) {
+                AutoSQLAzure { 
+                    #Get if not already loaded
+                    If (!$AzureDB) { $AzureDB = Get-AzureRmSqlDatabase -Name $ApplicationName -ResourceGroupName $ResourceGroup.ResourceGroupName -ServerName $AzureSQL.Servername -ErrorAction SilentlyContinue }
+                    $BSTR = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($credentials.Password)
+                    $PlainPassword = [System.Runtime.InteropServices.Marshal]::PtrToStringAuto($BSTR)
+                    $autoSQL = "Server=tcp:$($AzureDB.ServerName).database.windows.net,1433;Initial Catalog=$($AzureDB.DatabaseName);Persist Security Info=False;User ID=$($SQLUser);Password=$($PlainPassword);MultipleActiveResultSets=False;Encrypt=True;TrustServerCertificate=False;Connection Timeout=30;"
+                    $PlainPassword = $null
+                    $Type = "SQLAzure"
+                    $setting =  @{Type=$Type.ToString();Value=$autoSQL.ToString()}
+                }
+                AutoCustom { 
+                    #In case already created, get it anyway
+                    If (!$AzureStorage) {$AzureStorage = Get-AzureRmStorageAccount -Name $CleanApplicationName -ResourceGroupName $ResourceGroup.ResourceGroupName -ErrorAction SilentlyContinue }
+                    If (!$AzureStorageKey) {
+                        #Get Storage Account Key
+                        $AzureStorageKey = Get-AzureRmStorageAccountKey `
+                        -ResourceGroupName $ResourceGroup.ResourceGroupName `
+                        -Name $AzureStorage.StorageAccountName
+                    }
+                    $AutoCustom = "DefaultEndpointsProtocol=https;AccountName=$($CleanApplicationName);AccountKey=$($AzureStorageKey.Value[0]);EndpointSuffix=core.windows.net"
+                    $Type = "Custom"
+                    $setting =  @{Type=$Type.ToString();Value=$AutoCustom.ToString()}
+                }
+                Default {
+                    #Use ConnectionString from XML
+                    $connectionStringInfo = (@{Name = $connectionstring.Name; Type = "Custom"; ConnectionString = $connectionstring.ConnectionString})
+                    $Type = $connectionstring.Type
+                    $setting =  @{Type=$Type.ToString();Value=$connectionStringInfo.ToString()}
+
+                }
+            }
+            $hashItems.Add($connectionstring.Name,$setting);
+        }
+    }
+    Write-Output 'Commit changes to WebApp'
+    Set-AzureRmWebApp $AzureApp.Name -AppSettings $hashAppSettings -ConnectionStrings $hashItems -ResourceGroupName $ResourceGroup.ResourceGroupName | Out-Null
+
+    If ($XMLconfig.AzureApplication.WebApp.AlwaysOn -eq $true)
+    {
+        #Set Properties
+        Write-Output 'Set Properties'
+        If (($XMLconfig.AzureApplication.WebAppServicePlan.PricingTier -ne 'Free') -or ($XMLconfig.AzureApplication.WebAppServicePlan.PricingTier -ne 'Shared'))    
+        { 
+            Write-Output 'Enable AlwaysOn'
+            $WebAppPropertiesObject = @{"siteConfig" = @{"AlwaysOn" = $true}}
+            $WebAppResourceType = 'microsoft.web/sites'
+            $webAppResource = Get-AzureRmResource -ResourceType $WebAppResourceType -ResourceGroupName $ResourceGroup.ResourceGroupName -ResourceName $AzureApp.Name
+            $webAppResource | Set-AzureRmResource -PropertyObject $WebAppPropertiesObject -Force | Out-Null
+        } else {
+            Write-Output 'Always on should be enabled but this is not support in Free and Shared App Plan, skipping'
+        }
+    } 
 }
 
 $EndTime = Get-Date

@@ -8,12 +8,19 @@
     <StorageAccount>
         <Provision>true</Provision>
         <Type>Standard_LRS</Type>
-        <CreateContainers>false</CreateContainers>
+        <CreateContainers>true</CreateContainers>
         <Containers>
-            <!-- Permission can be Off / Blob / Container -->
+            <!-- Permission can be Off / Blob / Container 
             <Container Name="download" Permission="Blob" />
+            -->
+            <Container Name="apps" Permission="Off" />
             <Container Name="log" Permission="Off" />
+			<Container Name="templates" Permission="Off" />            
         </Containers>
+        <CreateQueues>true</CreateQueues>
+        <Queues>
+            <Queue>installationqueue</Queue>
+        </Queues>
     </StorageAccount>
     <WebAppServicePlan>
         <Provision>true</Provision>
@@ -24,6 +31,25 @@
     </WebAppServicePlan>
     <WebApp>
         <Provision>true</Provision>
+        <AlwaysOn>true</AlwaysOn>
+        <CreateAppSettings>true</CreateAppSettings>
+        <AppSettings>
+            <AppSetting Name="ClientId" Value="" />
+            <AppSetting Name="ClientSecret" Value="" />
+            <AppSetting Name="CollaborationManagerUrl" Value="" />
+        </AppSettings>
+        <CreateConnectionStrings>true</CreateConnectionStrings>
+        <ConnectionStrings>
+            <!-- Type AutoSQLAzure and AutoCustom will automatically populate from it's self created resources SQL and Storage Account -->
+            <Connectionstring Name="AppFramework" ConnectionString="" Type="AutoSQLAzure" />
+            <Connectionstring Name="AzureBlob" ConnectionString="" Type="AutoCustom" />
+            <Connectionstring Name="AzureWebJobsDashboard" ConnectionString="" Type="AutoCustom" />
+            <Connectionstring Name="AzureWebJobsStorage" ConnectionString="" Type="AutoCustom" />
+            <!-- Additional examples
+            <Connectionstring Name="DB" ConnectionString="Server=tcp:mssql.database.windows.net,1433;Initial Catalog=DBName;Persist Security Info=False;User ID=admin;Password=P@ssw0rd!;MultipleActiveResultSets=False;Encrypt=True;TrustServerCertificate=False;Connection Timeout=30;" Type "SQLAzure" />
+            <Connectionstring Name="AzureBlob" ConnectionString="DefaultEndpointsProtocol=https;AccountName=StorageAccountName;AccountKey=StorageAccountKey==;EndpointSuffix=core.windows.net" Type "Custom" />
+            -->
+        </ConnectionStrings>
     </WebApp>
     <SQL>
         <Provision>true</Provision>
