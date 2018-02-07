@@ -245,6 +245,11 @@ If ($XMLconfig.AzureApplication.SQL.Provision)
             -SqlAdministratorCredentials $Credentials `
             -ErrorAction Stop
         Write-Output 'SQL created'
+        Write-Output 'Firewall - Allow all Azure IPs'
+        New-AzureRmSqlServerFirewallRule `
+            -ResourceGroupName $ResourceGroup.ResourceGroupName `
+            -ServerName $ApplicationName `
+            -AllowAllAzureIPs
     }
     #DB
     Write-Verbose 'Try to get existing SQLDB'
