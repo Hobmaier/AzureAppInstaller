@@ -249,7 +249,7 @@ If ($XMLconfig.AzureApplication.SQL.Provision)
         New-AzureRmSqlServerFirewallRule `
             -ResourceGroupName $ResourceGroup.ResourceGroupName `
             -ServerName $ApplicationName `
-            -AllowAllAzureIPs
+            -AllowAllAzureIPs | Out-Null
     }
     #DB
     Write-Verbose 'Try to get existing SQLDB'
